@@ -1,0 +1,56 @@
+# .github/workflows/build-push.yml
+# Author: Tim Chaubet
+
+name: Build and Push Ink Image
+
+on:
+  push:
+    branches: [ "main" ]
+    # The 'paths' filter has been removed so ANY change to the repo triggers a build
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Registry Path
+        # Converts TrueOsiris to trueosiris to comply with Docker naming rules
+        id: repo
+        run: |
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Target the specific 'ink' image name
+          images: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ink
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ink:latest
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ink:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          pull: true
